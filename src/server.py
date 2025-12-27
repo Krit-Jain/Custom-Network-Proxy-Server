@@ -1,13 +1,47 @@
 import socket
 import threading
 from urllib.parse import urlparse
+import os
 
 # ================= CONFIG =================
 LISTEN_HOST = "0.0.0.0"
 LISTEN_PORT = 8888
 BUFFER_SIZE = 4096
 HEADER_TERMINATOR = b"\r\n\r\n"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BLOCKLIST_FILE = os.path.join(BASE_DIR, "..", "config", "blocked_domains.txt")
 # =========================================
+
+
+def load_blocklist():
+    blocked = set()
+    if not os.path.exists(BLOCKLIST_FILE):
+        return blocked
+
+    with open(BLOCKLIST_FILE, "r") as f:
+        for line in f:
+            line = line.strip().lower()
+            if not line or line.startswith("#"):
+                continue
+            blocked.add(line)
+    return blocked
+
+
+BLOCKED_SET = load_blocklist()
+
+
+def is_blocked(host):
+    if not host:
+        return False
+
+    host = host.lower()
+
+    # Exact or subdomain match
+    for blocked in BLOCKED_SET:
+        if host == blocked or host.endswith("." + blocked):
+            return True
+
+    return False
 
 
 def recv_http_request(client_socket):
@@ -56,6 +90,18 @@ def parse_http_request(request_bytes):
     }
 
 
+def send_forbidden(client_socket):
+    response = (
+        "HTTP/1.1 403 Forbidden\r\n"
+        "Content-Type: text/plain\r\n"
+        "Content-Length: 16\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+        "Access Forbidden"
+    )
+    client_socket.sendall(response.encode())
+
+
 def forward_request(parsed_request, client_socket):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -74,8 +120,6 @@ def forward_request(parsed_request, client_socket):
 
 
 def handle_client(client_socket, client_addr):
-    print(f"[+] Handling client {client_addr}")
-
     try:
         request_data = recv_http_request(client_socket)
         if not request_data:
@@ -83,7 +127,12 @@ def handle_client(client_socket, client_addr):
 
         parsed = parse_http_request(request_data)
 
-        print(f"[>] {parsed['method']} {parsed['host']}:{parsed['port']}")
+        if is_blocked(parsed["host"]):
+            print(f"[BLOCKED] {client_addr} → {parsed['host']}")
+            send_forbidden(client_socket)
+            return
+
+        print(f"[ALLOWED] {client_addr} → {parsed['host']}")
 
         forward_request(parsed, client_socket)
 
@@ -92,7 +141,6 @@ def handle_client(client_socket, client_addr):
 
     finally:
         client_socket.close()
-        print(f"[-] Closed {client_addr}")
 
 
 def start_proxy():
@@ -101,17 +149,17 @@ def start_proxy():
     server_socket.bind((LISTEN_HOST, LISTEN_PORT))
     server_socket.listen(50)
 
-    print(f"[+] Threaded proxy listening on {LISTEN_HOST}:{LISTEN_PORT}")
+    print(f"[+] Proxy with filtering listening on {LISTEN_HOST}:{LISTEN_PORT}")
 
     while True:
         client_socket, client_addr = server_socket.accept()
 
-        client_thread = threading.Thread(
+        thread = threading.Thread(
             target=handle_client,
             args=(client_socket, client_addr),
             daemon=True
         )
-        client_thread.start()
+        thread.start()
 
 
 if __name__ == "__main__":

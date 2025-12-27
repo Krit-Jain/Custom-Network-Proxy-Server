@@ -1,0 +1,6 @@
+# Blocked domains
+example.com
+badsite.org
+example.org
+# Blocked IPs
+192.0.2.5
