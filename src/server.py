@@ -2,15 +2,43 @@ import socket
 import threading
 from urllib.parse import urlparse
 import os
+from datetime import datetime
 
 # ================= CONFIG =================
 LISTEN_HOST = "0.0.0.0"
 LISTEN_PORT = 8888
 BUFFER_SIZE = 4096
 HEADER_TERMINATOR = b"\r\n\r\n"
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 BLOCKLIST_FILE = os.path.join(BASE_DIR, "..", "config", "blocked_domains.txt")
+LOG_DIR = os.path.join(BASE_DIR, "..", "logs")
+LOG_FILE = os.path.join(LOG_DIR, "proxy.log")
 # =========================================
+
+
+# ================= METRICS =================
+metrics = {
+    "total": 0,
+    "allowed": 0,
+    "blocked": 0
+}
+metrics_lock = threading.Lock()
+# ===========================================
+
+
+def ensure_log_dir():
+    if not os.path.exists(LOG_DIR):
+        os.makedirs(LOG_DIR)
+
+
+def log_event(message):
+    ensure_log_dir()
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = f"[{timestamp}] {message}\n"
+
+    with open(LOG_FILE, "a") as f:
+        f.write(entry)
 
 
 def load_blocklist():
@@ -35,12 +63,9 @@ def is_blocked(host):
         return False
 
     host = host.lower()
-
-    # Exact or subdomain match
     for blocked in BLOCKED_SET:
         if host == blocked or host.endswith("." + blocked):
             return True
-
     return False
 
 
@@ -63,7 +88,6 @@ def parse_http_request(request_bytes):
 
     host = None
     port = 80
-    path = target
 
     for line in lines[1:]:
         if line.lower().startswith("host:"):
@@ -79,13 +103,11 @@ def parse_http_request(request_bytes):
         parsed = urlparse(target)
         host = parsed.hostname
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        path = parsed.path or "/"
 
     return {
         "method": method,
         "host": host,
         "port": port,
-        "path": path,
         "raw": request_bytes
     }
 
@@ -120,24 +142,36 @@ def forward_request(parsed_request, client_socket):
 
 
 def handle_client(client_socket, client_addr):
+    global metrics
+
     try:
         request_data = recv_http_request(client_socket)
         if not request_data:
             return
 
         parsed = parse_http_request(request_data)
+        client_id = f"{client_addr[0]}:{client_addr[1]}"
+        target_id = f"{parsed['host']}:{parsed['port']}"
+
+        with metrics_lock:
+            metrics["total"] += 1
 
         if is_blocked(parsed["host"]):
-            print(f"[BLOCKED] {client_addr} → {parsed['host']}")
+            with metrics_lock:
+                metrics["blocked"] += 1
+
+            log_event(f"{client_id} → {target_id} | {parsed['method']} | BLOCKED")
             send_forbidden(client_socket)
             return
 
-        print(f"[ALLOWED] {client_addr} → {parsed['host']}")
+        with metrics_lock:
+            metrics["allowed"] += 1
 
+        log_event(f"{client_id} → {target_id} | {parsed['method']} | ALLOWED")
         forward_request(parsed, client_socket)
 
     except Exception as e:
-        print(f"[!] Error with {client_addr}: {e}")
+        log_event(f"ERROR {client_addr} | {e}")
 
     finally:
         client_socket.close()
@@ -149,7 +183,7 @@ def start_proxy():
     server_socket.bind((LISTEN_HOST, LISTEN_PORT))
     server_socket.listen(50)
 
-    print(f"[+] Proxy with filtering listening on {LISTEN_HOST}:{LISTEN_PORT}")
+    print(f"[+] Proxy with logging listening on {LISTEN_HOST}:{LISTEN_PORT}")
 
     while True:
         client_socket, client_addr = server_socket.accept()
