@@ -162,12 +162,12 @@ Run tests in another terminal:
 ./tests/test_concurrency.sh
 ```
 ### Test Cover:
--HTTP allowed requests
--HTTP blocked requests
--HTTPS CONNECT tunneling
--HTTPS blocking
--Cache hit/miss behavior
--Concurrent client handling
+- HTTP allowed requests
+- HTTP blocked requests
+- HTTPS CONNECT tunneling
+- HTTPS blocking
+- Cache hit/miss behavior
+- Concurrent client handling
 
 ## 🔐 Proxy Authentication
 
