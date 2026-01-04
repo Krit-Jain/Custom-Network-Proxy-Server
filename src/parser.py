@@ -21,11 +21,25 @@ def parse_http_request(data):
 
     host = None
     port = 80
+    path = "/"
 
     if method == "CONNECT":
         host, port = target.split(":")
         port = int(port)
+        path = None  # CONNECT has no path
+
     else:
+        # Absolute-form (proxy requests)
+        if target.startswith("http://") or target.startswith("https://"):
+            parsed = urlparse(target)
+            host = parsed.hostname
+            port = parsed.port or 80
+            path = parsed.path or "/"   # ✅ CRITICAL LINE
+        else:
+            # Origin-form
+            path = target or "/"        # ✅ CRITICAL LINE
+
+        # Extract Host header
         for line in lines[1:]:
             if line.lower().startswith("host:"):
                 host_value = line.split(":", 1)[1].strip()
@@ -36,14 +50,10 @@ def parse_http_request(data):
                     host = host_value
                 break
 
-        if target.startswith("http"):
-            parsed = urlparse(target)
-            host = parsed.hostname
-            port = parsed.port or 80
-
     return {
         "method": method,
         "host": host,
         "port": port,
+        "path": path,   # ✅ REQUIRED for caching
         "raw": data
     }
