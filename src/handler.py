@@ -3,6 +3,42 @@ from parser import recv_http_request, parse_http_request
 from filter import is_blocked
 from logger import log_event, metrics, metrics_lock
 from forwarder import tunnel, forward_http
+import base64
+import os
+
+
+USERS_FILE = os.path.join(
+    os.path.dirname(__file__),
+    "..",
+    "config",
+    "users.txt"
+)
+
+def load_users():
+    users = {}
+    with open(USERS_FILE) as f:
+        for line in f:
+            if ":" in line:
+                u, p = line.strip().split(":", 1)
+                users[u] = p
+    return users
+
+
+def check_auth(headers):
+    auth = headers.get("proxy-authorization")
+    if not auth or not auth.lower().startswith("basic "):
+        return False
+
+    encoded = auth.split()[1]
+    decoded = base64.b64decode(encoded).decode()
+
+    if ":" not in decoded:
+        return False
+
+    username, password = decoded.split(":", 1)
+    users = load_users()
+
+    return users.get(username) == password
 
 
 def handle_client(client_sock, client_addr):
@@ -12,6 +48,17 @@ def handle_client(client_sock, client_addr):
             return
 
         parsed = parse_http_request(req)
+
+        # -------- AUTHENTICATION CHECK --------
+        if not check_auth(parsed.get("headers", {})):
+            log_event(f"{client_addr} → AUTH FAILED")
+            client_sock.sendall(
+                b"HTTP/1.1 407 Proxy Authentication Required\r\n"
+                b"Proxy-Authenticate: Basic realm=\"Proxy\"\r\n"
+                b"Content-Length: 0\r\n\r\n"
+            )
+            return
+        # -------------------------------------
 
         with metrics_lock:
             metrics["total"] += 1
@@ -46,3 +93,4 @@ def handle_client(client_sock, client_addr):
 
     finally:
         client_sock.close()
+

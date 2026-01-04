@@ -49,11 +49,18 @@ def parse_http_request(data):
                 else:
                     host = host_value
                 break
+    headers = {}
+
+    for line in lines[1:]:
+        if ":" in line:
+            k, v = line.split(":", 1)
+            headers[k.strip().lower()] = v.strip()
 
     return {
         "method": method,
         "host": host,
         "port": port,
-        "path": path,   # ✅ REQUIRED for caching
+        "path": path,
+        "headers": headers,
         "raw": data
     }
