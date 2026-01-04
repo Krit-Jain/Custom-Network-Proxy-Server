@@ -209,6 +209,7 @@ user:test123
 ```bash
 curl -x localhost:8888 -U admin:admin123 http://neverssl.com
 curl -x localhost:8888 -U admin:admin123 https://neverssl.com
+```
 
 ## 🛑 Graceful Shutdown
 
