@@ -23,6 +23,7 @@ The proxy follows a modular architecture where each component has a single respo
 
 - **handler.py**
   - Handles a single client connection
+  - Performs authentication
   - Parses requests
   - Applies filtering rules
   - Dispatches requests to HTTP forwarding or HTTPS tunneling
@@ -50,6 +51,70 @@ The proxy follows a modular architecture where each component has a single respo
   - Records proxy activity
   - Implements size-based log rotation
   - Maintains request metrics
+
+### High-Level Architecture Diagram
+
+                        ┌────────────────────┐
+                        │       Client       │
+                        │  (Browser / curl)  │
+                        └─────────┬──────────┘
+                                  │
+                                  │ HTTP / HTTPS Request
+                                  ▼
+                    ┌─────────────────────────────┐
+                    │        server.py            │
+                    │  - TCP socket (listen)      │
+                    │  - Accept connections       │
+                    │  - Thread-per-connection    │
+                    └─────────┬───────────────────┘
+                              │
+                              │ New thread
+                              ▼
+                  ┌────────────────────────────────┐
+                  │          handler.py            │
+                  │  - Receive raw request         │
+                  │  - Authentication check        │
+                  │  - Metrics update              │
+                  │  - Dispatch based on method    │
+                  └─────────┬───────────┬──────────┘
+                            │           │
+                            │           │
+            HTTP Request    │           │ HTTPS CONNECT
+                            │           │
+                            ▼           ▼
+          ┌────────────────────────┐   ┌────────────────────────┐
+          │        filter.py       │   │        filter.py       │
+          │  - Domain/IP blocking  │   │  - Domain/IP blocking  │
+          └─────────┬──────────────┘   └─────────┬──────────────┘
+                    │                            │
+            Allowed │                            │ Allowed
+                    ▼                            ▼
+      ┌────────────────────────────┐   ┌────────────────────────────┐
+      │       forwarder.py         │   │       forwarder.py         │
+      │  (HTTP Forwarding Path)    │   │   (HTTPS Tunnel Path)      │
+      │                            │   │                            │
+      │  ┌─────────────────────┐   │   │  ┌─────────────────────┐   │
+      │  │      cache.py       │ ◄─┼───┼─►│   tunnel() threads  │   │
+      │  │  - LRU cache        │   │   │  │  - Bidirectional I/O│   │
+      │  └─────────────────────┘   │   │  └─────────────────────┘   │
+      │                            │   │                            │
+      └─────────┬──────────────────┘   └─────────┬──────────────────┘
+                │                                │
+                │                                │
+                ▼                                ▼
+        ┌────────────────────┐          ┌────────────────────┐
+        │   Origin Server    │          │   Origin Server    │
+        │   (HTTP Server)    │          │   (HTTPS Server)   │
+        └─────────┬──────────┘          └─────────┬──────────┘
+                  │                               │
+                  │ Response                      │ Encrypted Stream
+                  ▼                               ▼
+                  ┌───────────────────────────────┐
+                  │            logger.py          │
+                  │  - Log requests               │
+                  │  - Log cache hit/miss         │
+                  │  - Rotate logs                │
+                  └───────────────────────────────┘
 
 ---
 
@@ -96,6 +161,7 @@ The proxy enforces **Basic Proxy Authentication** for all incoming requests.
 - Unauthorized requests receive `HTTP/1.1 407 Proxy Authentication Required`
 - Authentication is applied uniformly to both HTTP and HTTPS (CONNECT) requests
 - Credentials are configured via an external configuration file
+- Authentication prevents unauthorized use of the proxy service
 
 Authentication is performed before request filtering and forwarding to ensure secure access control.
 
