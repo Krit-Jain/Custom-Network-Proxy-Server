@@ -1,9 +1,13 @@
 from collections import OrderedDict
 import threading
-import time
+from config_loader import get_cache_config
 
-MAX_CACHE_SIZE = 10
-MAX_OBJECT_SIZE = 512 * 1024
+# Load cache configuration
+cache_cfg = get_cache_config()
+
+CACHE_ENABLED = cache_cfg["enabled"]
+MAX_CACHE_SIZE = cache_cfg["max_entries"]
+MAX_OBJECT_SIZE = cache_cfg["max_object_size"]
 
 
 class LRUCache:
@@ -13,6 +17,9 @@ class LRUCache:
         self.lock = threading.Lock()
 
     def get(self, key):
+        if not CACHE_ENABLED:
+            return None
+
         with self.lock:
             if key not in self.cache:
                 return None
@@ -20,6 +27,13 @@ class LRUCache:
             return self.cache[key]
 
     def put(self, key, value):
+        if not CACHE_ENABLED:
+            return
+
+        # Enforce max object size
+        if len(value) > MAX_OBJECT_SIZE:
+            return
+
         with self.lock:
             if key in self.cache:
                 self.cache.move_to_end(key)
@@ -30,4 +44,5 @@ class LRUCache:
                 self.cache.popitem(last=False)
 
 
+# Global cache instance
 cache = LRUCache()

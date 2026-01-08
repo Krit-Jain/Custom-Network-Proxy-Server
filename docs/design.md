@@ -88,9 +88,20 @@ The proxy uses a **thread-per-connection** model.
 - Shared resources (cache and logs) are protected using thread locks.
 
 ---
+## 5. Authentication
 
-## 5. Filtering and Configuration
+The proxy enforces **Basic Proxy Authentication** for all incoming requests.
 
+- Clients must provide credentials using the `Proxy-Authorization` header
+- Unauthorized requests receive `HTTP/1.1 407 Proxy Authentication Required`
+- Authentication is applied uniformly to both HTTP and HTTPS (CONNECT) requests
+- Credentials are configured via an external configuration file
+
+Authentication is performed before request filtering and forwarding to ensure secure access control.
+
+## 6. Filtering and Configuration
+Filtering and server behavior are configured using external configuration files.
+- Server parameters such as listening address, port, logging path, and cache limits are defined in a separate configuration file.
 - Filtering rules are defined in a simple text file (`blocked_domains.txt`).
 - Each line specifies a blocked domain or IP address.
 - Hostnames are normalized (lowercase, trimmed) before matching.
@@ -99,7 +110,7 @@ The proxy uses a **thread-per-connection** model.
 
 ---
 
-## 6. Logging and Metrics
+## 7. Logging and Metrics
 
 - All requests are logged with:
   - Timestamp
@@ -112,10 +123,11 @@ The proxy uses a **thread-per-connection** model.
 
 ---
 
-## 7. Caching
+## 8. Caching
 
 - The proxy implements optional HTTP response caching.
 - Only GET requests are cached.
+- Responses are cached only when they are finite and below a configurable size threshold.
 - HTTPS traffic is excluded from caching.
 - An LRU eviction policy ensures bounded memory usage.
 - Cache access is thread-safe.
@@ -123,7 +135,7 @@ The proxy uses a **thread-per-connection** model.
 
 ---
 
-## 8. Graceful Shutdown
+## 9. Graceful Shutdown
 
 - Signal handlers are registered for SIGINT and SIGTERM.
 - On shutdown:
@@ -133,7 +145,7 @@ The proxy uses a **thread-per-connection** model.
 
 ---
 
-## 9. Limitations and Future Work
+## 10. Limitations and Future Work
 
 - Full HTTP cache-control semantics are not implemented.
 - Chunked transfer decoding is not interpreted.
@@ -142,7 +154,7 @@ The proxy uses a **thread-per-connection** model.
 
 ---
 
-## 10. Conclusion
+## 11. Conclusion
 
 This project demonstrates a functional and extensible proxy server built using low-level networking primitives.  
 The modular design allows easy extension while maintaining clarity and correctness.

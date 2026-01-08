@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 echo "=============================="
 echo "[TEST] Proxy Authentication"
@@ -14,4 +15,7 @@ curl -x localhost:8888 -U admin:admin123 -I http://neverssl.com
 
 echo ""
 echo "3) HTTPS request WITH authentication (expected: CONNECT success)"
-curl -x localhost:8888 -U admin:admin123 -I https://neverssl.com
+curl -v -x localhost:8888 -U admin:admin123 https://neverssl.com >/dev/null
+
+echo ""
+echo "[PASS] Authentication tests completed successfully"

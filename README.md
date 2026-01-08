@@ -39,6 +39,8 @@ custom-network-proxy-server/
 │
 ├── config/
 │ └── blocked_domains.txt
+│ └── proxy.conf
+│ └── users.txt
 │
 ├── logs/
 │ └── proxy.log
@@ -161,7 +163,7 @@ Run tests in another terminal:
 ./tests/test_cache.sh
 ./tests/test_concurrency.sh
 ```
-### Test Cover:
+### Tests Cover:
 - HTTP allowed requests
 - HTTP blocked requests
 - HTTPS CONNECT tunneling
@@ -210,6 +212,21 @@ user:test123
 curl -x localhost:8888 -U admin:admin123 http://neverssl.com
 curl -x localhost:8888 -U admin:admin123 https://neverssl.com
 ```
+## ⚙️ Server Configuration
+
+Server behavior is configured using a plain text configuration file:
+
+```bash
+config/proxy.conf
+```
+
+The configuration file allows setting:
+- Listening address and port
+- Maximum concurrent connections
+- Log file path and rotation size
+- Cache size and object limits
+
+This design separates configuration from code and improves flexibility.
 
 ## 🛑 Graceful Shutdown
 
