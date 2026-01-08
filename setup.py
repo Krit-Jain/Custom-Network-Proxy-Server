@@ -1,12 +1,21 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 setup(
     name="custom-network-proxy-server",
     version="1.0.0",
     description="A custom HTTP/HTTPS proxy server with filtering, caching, logging, and authentication",
-    author="Your Name",
+    author="Krit Jain",
     python_requires=">=3.10",
-    packages=find_packages(where="src"),
+    py_modules=[
+        "server",
+        "handler",
+        "parser",
+        "forwarder",
+        "filter",
+        "cache",
+        "logger",
+        "config_loader",
+    ],
     package_dir={"": "src"},
     include_package_data=True,
     install_requires=[],
