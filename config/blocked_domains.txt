@@ -1,6 +1,22 @@
+# ──────────────────────────────────────────────
+# Blocked Domains and IPs
+# ──────────────────────────────────────────────
+# One entry per line.  Blank lines and lines
+# starting with '#' are ignored.
+#
+# Supported formats:
+#   example.com          — exact domain match
+#   sub.example.com      — blocked via suffix match if example.com is listed
+#   192.0.2.5            — exact IP match
+#   192.168.0.0/24       — CIDR range (all 256 addresses)
+# ──────────────────────────────────────────────
+
 # Blocked domains
 example.com
 badsite.org
 
 # Blocked IPs
 192.0.2.5
+
+# Blocked CIDR ranges
+# 10.0.0.0/8

@@ -1,0 +1,19 @@
+# ──────────────────────────────────────────────
+# Custom Network Proxy Server — Dependencies
+# ──────────────────────────────────────────────
+#
+# The proxy server is built entirely on the Python
+# standard library (socket, threading, http.server,
+# configparser, hashlib, etc.) — no external packages
+# are required for core functionality.
+#
+# Python >= 3.10 is required.
+#
+# ──────────────────────────────────────────────
+# Optional: Development & Testing
+# ──────────────────────────────────────────────
+# Uncomment the lines below if you want to run
+# load-testing benchmarks or generate test reports.
+#
+# locust            # HTTP load testing
+# pytest            # Extended test runner (optional)

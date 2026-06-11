@@ -1,55 +1,97 @@
-import socket
-import threading
+"""
+server.py — Proxy server entry point.
+
+Creates a listening TCP socket, accepts client connections, and
+dispatches each connection to a bounded ThreadPoolExecutor.
+
+Concurrency model
+─────────────────
+A fixed-size thread pool (configurable via proxy.conf) prevents
+unbounded thread creation under load.  When the pool is saturated,
+new connections are queued by the executor.  The OS-level backlog
+(socket.listen) acts as a secondary bound.
+
+Graceful shutdown
+─────────────────
+SIGINT and SIGTERM close the listening socket, which causes the
+accept-loop to exit.  The thread pool is then shut down with
+wait=True so that in-flight requests finish before the process
+terminates.
+"""
+
 import signal
+import socket
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
-from handler import handle_client
 from config_loader import get_server_config
+from handler import handle_client
 
-server_socket = None
+# ── Load configuration ───────────────────────────────────────
+_cfg = get_server_config()
+LISTEN_HOST: str = _cfg["host"]
+LISTEN_PORT: int = _cfg["port"]
+MAX_CONN: int = _cfg["max_conn"]
+POOL_SIZE: int = _cfg["thread_pool_size"]
 
-# Load server configuration
-server_cfg = get_server_config()
-LISTEN_HOST = server_cfg["host"]
-LISTEN_PORT = server_cfg["port"]
-MAX_CONN = server_cfg["max_conn"]
+# ── Module-level references for signal handler ───────────────
+_server_socket: socket.socket | None = None
+_thread_pool: ThreadPoolExecutor | None = None
 
 
-def graceful_shutdown(signum, frame):
+def _graceful_shutdown(signum, frame):
+    """Close the listening socket and drain the thread pool."""
     print("\n[+] Shutting down proxy gracefully...")
-    global server_socket
-    if server_socket:
-        server_socket.close()
+
+    global _server_socket, _thread_pool
+
+    if _server_socket:
+        try:
+            _server_socket.close()
+        except OSError:
+            pass
+
+    if _thread_pool:
+        _thread_pool.shutdown(wait=True, cancel_futures=True)
+
     sys.exit(0)
 
 
 def start_proxy():
-    global server_socket
+    """Bind, listen, and accept connections in the main thread."""
+    global _server_socket, _thread_pool
 
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind((LISTEN_HOST, LISTEN_PORT))
-    server_socket.listen(MAX_CONN)
+    # ── Create listening socket ──────────────────────────────
+    _server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    _server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    _server_socket.bind((LISTEN_HOST, LISTEN_PORT))
+    _server_socket.listen(MAX_CONN)
 
-    print(f"[+] Proxy listening on {LISTEN_HOST}:{LISTEN_PORT}")
+    # ── Create bounded thread pool ───────────────────────────
+    _thread_pool = ThreadPoolExecutor(
+        max_workers=POOL_SIZE,
+        thread_name_prefix="proxy-worker",
+    )
 
+    print(
+        f"[+] Proxy listening on {LISTEN_HOST}:{LISTEN_PORT}  "
+        f"(pool={POOL_SIZE})"
+    )
+
+    # ── Accept loop ──────────────────────────────────────────
     while True:
         try:
-            client, addr = server_socket.accept()
-            threading.Thread(
-                target=handle_client,
-                args=(client, addr),
-                daemon=True
-            ).start()
+            client_sock, client_addr = _server_socket.accept()
+            _thread_pool.submit(handle_client, client_sock, client_addr)
         except OSError:
-            # Raised when server_socket is closed during shutdown
+            # Raised when _server_socket is closed during shutdown
             break
 
 
 def main():
-    # Register signal handlers
-    signal.signal(signal.SIGINT, graceful_shutdown)
-    signal.signal(signal.SIGTERM, graceful_shutdown)
+    """Register signal handlers and start the proxy."""
+    signal.signal(signal.SIGINT, _graceful_shutdown)
+    signal.signal(signal.SIGTERM, _graceful_shutdown)
 
     start_proxy()
 
