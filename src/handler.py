@@ -102,6 +102,10 @@ def handle_client(client_sock: socket.socket, client_addr: tuple):
         host = parsed["host"]
         port = parsed["port"]
         method = parsed["method"]
+        request_id = parsed.get("request_id", "")
+
+        # Inject client IP so forwarder can build X-Forwarded-For
+        parsed["client_ip"] = client_addr[0]
 
         # Count every inbound request
         with metrics_lock:
@@ -113,7 +117,8 @@ def handle_client(client_sock: socket.socket, client_addr: tuple):
         # ── 2. Authentication ────────────────────────────────
         if not _check_auth(parsed.get("headers", {})):
             log_event(
-                f"{client_addr} → AUTH FAILED",
+                f"[{request_id[:8]}] {client_addr} → AUTH FAILED",
+                request_id=request_id,
                 client_ip=client_addr[0],
                 action="AUTH_FAILED",
             )
@@ -130,7 +135,8 @@ def handle_client(client_sock: socket.socket, client_addr: tuple):
             with metrics_lock:
                 metrics["blocked"] += 1
             log_event(
-                f"{client_addr} → {host}:{port} | BLOCKED",
+                f"[{request_id[:8]}] {client_addr} → {host}:{port} | BLOCKED",
+                request_id=request_id,
                 client_ip=client_addr[0],
                 host=host,
                 port=port,
@@ -150,7 +156,8 @@ def handle_client(client_sock: socket.socket, client_addr: tuple):
         # ── 4. HTTPS CONNECT tunneling ───────────────────────
         if method == "CONNECT":
             log_event(
-                f"{client_addr} → {host}:{port} | CONNECT",
+                f"[{request_id[:8]}] {client_addr} → {host}:{port} | CONNECT",
+                request_id=request_id,
                 client_ip=client_addr[0],
                 host=host,
                 port=port,
@@ -184,7 +191,8 @@ def handle_client(client_sock: socket.socket, client_addr: tuple):
 
         # ── 5. HTTP forwarding ───────────────────────────────
         log_event(
-            f"{client_addr} → {host}:{port} | {method}",
+            f"[{request_id[:8]}] {client_addr} → {host}:{port} | {method}",
+            request_id=request_id,
             client_ip=client_addr[0],
             host=host,
             port=port,
