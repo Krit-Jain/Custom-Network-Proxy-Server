@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/cover_art.png" alt="Cover Art" width="100%" style="border-radius: 10px; margin-bottom: 20px;">
+<img src="docs/cover_art.png" alt="Cover Art" width="600" style="border-radius: 10px; margin-bottom: 20px;">
 
 <h1>🛡️ Custom Network Proxy Server</h1>
 <p><strong>A masterclass in Python socket programming. Zero dependencies. Total control.</strong></p>
@@ -29,7 +29,7 @@ It implements complex enterprise-level concepts—Token Bucket rate limiting, PB
 A proxy is only as good as its visibility. The built-in dashboard (running on `:8889`) provides Server-Sent Events (SSE) streaming for real-time telemetry, cache statistics, and color-coded JSON logs.
 
 <div align="center">
-  <img src="docs/dashboard_screenshot.png" alt="Dashboard View" width="100%" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+  <img src="docs/dashboard_screenshot.png" alt="Dashboard View" width="800" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
 </div>
 
 ---
@@ -39,7 +39,7 @@ A proxy is only as good as its visibility. The built-in dashboard (running on `:
 The server utilizes a bounded `ThreadPoolExecutor` concurrency model, capable of handling high loads without resource exhaustion. Shared states (caching, rate limiting, logging) are tightly managed using fine-grained threading locks.
 
 <div align="center">
-  <img src="docs/architecture_diagram.png" alt="Architecture Diagram" width="100%" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px;">
+  <img src="docs/architecture_diagram.png" alt="Architecture Diagram" width="800" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px;">
 </div>
 
 ### 🧬 Component Interaction Graph
@@ -79,7 +79,7 @@ graph TD
 Every incoming connection is passed through a strict, deterministic 6-step pipeline.
 
 <div align="center">
-  <img src="docs/request_pipeline.png" alt="Request Pipeline" width="100%" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px;">
+  <img src="docs/request_pipeline.png" alt="Request Pipeline" width="800" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px;">
 </div>
 
 ### 🔍 Pipeline Execution Flow
