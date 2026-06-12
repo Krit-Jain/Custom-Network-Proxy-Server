@@ -3,10 +3,12 @@ handler.py — Per-connection request handler.
 
 Orchestrates the full lifecycle of a single client connection:
   1. Receive and parse the HTTP request
-  2. Authenticate the client (Basic Proxy-Authorization)
-  3. Check the domain/IP blocklist
-  4. Dispatch to HTTP forwarding or HTTPS CONNECT tunneling
-  5. Log the outcome
+  2. Enforce per-IP rate limiting (token bucket → 429)
+  3. Authenticate the client (Basic Proxy-Authorization)
+  4. Check the domain/IP blocklist
+  5. Dispatch to HTTPS CONNECT tunneling, or
+  6. Dispatch to HTTP forwarding
+  7. Log the outcome
 
 All exceptions are caught to prevent one bad connection from
 affecting other clients sharing the thread pool.
@@ -26,6 +28,7 @@ from logger import (
     record_host,
 )
 from parser import parse_http_request, recv_http_request
+from rate_limiter import rate_limiter, RATE_LIMIT_ENABLED
 
 # ── Load user credentials ────────────────────────────────────
 USERS_FILE = os.path.join(
@@ -114,7 +117,32 @@ def handle_client(client_sock: socket.socket, client_addr: tuple):
         # Track per-host stats
         record_host(host)
 
-        # ── 2. Authentication ────────────────────────────────
+        # ── 2. Rate limiting (before auth — fail-fast) ───────
+        client_ip = client_addr[0]
+        if RATE_LIMIT_ENABLED and not rate_limiter.is_allowed(client_ip):
+            retry_after = rate_limiter.get_retry_after(client_ip)
+            with metrics_lock:
+                metrics["rate_limited"] += 1
+            log_event(
+                f"[{request_id[:8]}] {client_addr} → RATE LIMITED "
+                f"(retry after {retry_after}s)",
+                request_id=request_id,
+                client_ip=client_ip,
+                host=host,
+                port=port,
+                method=method,
+                action="RATE_LIMITED",
+            )
+            client_sock.sendall(
+                b"HTTP/1.1 429 Too Many Requests\r\n"
+                b"Connection: close\r\n"
+                b"Content-Length: 0\r\n"
+                + f"Retry-After: {retry_after}\r\n".encode()
+                + b"\r\n"
+            )
+            return
+
+        # ── 3. Authentication ────────────────────────────────
         if not _check_auth(parsed.get("headers", {})):
             log_event(
                 f"[{request_id[:8]}] {client_addr} → AUTH FAILED",
@@ -130,7 +158,7 @@ def handle_client(client_sock: socket.socket, client_addr: tuple):
             )
             return
 
-        # ── 3. Domain / IP filtering ─────────────────────────
+        # ── 4. Domain / IP filtering ─────────────────────────
         if is_blocked(host):
             with metrics_lock:
                 metrics["blocked"] += 1
@@ -153,7 +181,7 @@ def handle_client(client_sock: socket.socket, client_addr: tuple):
         with metrics_lock:
             metrics["allowed"] += 1
 
-        # ── 4. HTTPS CONNECT tunneling ───────────────────────
+        # ── 5. HTTPS CONNECT tunneling ───────────────────────
         if method == "CONNECT":
             log_event(
                 f"[{request_id[:8]}] {client_addr} → {host}:{port} | CONNECT",
@@ -189,7 +217,7 @@ def handle_client(client_sock: socket.socket, client_addr: tuple):
                     pass
             return
 
-        # ── 5. HTTP forwarding ───────────────────────────────
+        # ── 6. HTTP forwarding ───────────────────────────────
         log_event(
             f"[{request_id[:8]}] {client_addr} → {host}:{port} | {method}",
             request_id=request_id,
