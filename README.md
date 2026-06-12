@@ -1,353 +1,299 @@
-<div align="center">
+# Custom Network Proxy Server
 
-# ⚡ Custom Network Proxy Server
+![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![Tests](https://img.shields.io/badge/Tests-43%20passed-22c55e)
+![Dependencies](https://img.shields.io/badge/Dependencies-None-7c3aed)
+![RFC 7230](https://img.shields.io/badge/RFC-7230-0891b2)
 
-### A production-grade forward proxy server built from scratch with Python
+A forward proxy server built with Python's socket programming. It intercepts HTTP/HTTPS traffic between clients and origin servers, applying authentication, rate limiting, domain filtering, and response caching at each step. Includes a real-time monitoring dashboard and structured JSON logging.
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/Tests-43%20Passed-22c55e?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
-[![Dependencies](https://img.shields.io/badge/Dependencies-Zero-7c3aed?style=for-the-badge)](requirements.txt)
-[![RFC 7230](https://img.shields.io/badge/RFC-7230%20Compliant-0891b2?style=for-the-badge)](https://www.rfc-editor.org/rfc/rfc7230)
-[![License](https://img.shields.io/badge/License-MIT-f59e0b?style=for-the-badge)](LICENSE)
-
-**HTTP forwarding • HTTPS CONNECT tunneling • PBKDF2 authentication • Token bucket rate limiting  
-LRU caching • Domain/IP/CIDR filtering • Structured JSON logging • Real-time monitoring dashboard**
-
-Built entirely on the **Python standard library** — zero external dependencies.
+The entire project uses only the Python standard library — no external packages are required.
 
 ---
 
-<img src="docs/dashboard_screenshot.png" alt="Real-Time Monitoring Dashboard" width="85%">
+## Table of Contents
 
-*Real-time monitoring dashboard with dark glassmorphism UI, live metrics, and request streaming*
-
-</div>
-
----
-
-## 🌟 Why This Project Stands Out
-
-<table>
-<tr>
-<td width="50%">
-
-### 🔬 Built From the Ground Up
-Every component — from TCP socket management to HTTP parsing to PBKDF2 cryptography — is implemented **from scratch** using only Python's standard library. No frameworks, no shortcuts.
-
-</td>
-<td width="50%">
-
-### 🏗️ Production-Grade Architecture
-13 modular components organized into a clean **6-step request pipeline** with proper error handling, graceful shutdown, structured logging, and comprehensive configuration management.
-
-</td>
-</tr>
-<tr>
-<td>
-
-### 🔒 Security-First Design
-PBKDF2-HMAC-SHA256 with **600,000 iterations** (OWASP 2024 recommended), constant-time comparison, rate limiting **before** auth (brute-force protection), and domain/IP/CIDR filtering.
-
-</td>
-<td>
-
-### 📊 Full Observability
-Real-time web dashboard with **Server-Sent Events**, Chart.js live graphs, color-coded log streaming, cache analytics, and structured JSON logging with rotation.
-
-</td>
-</tr>
-</table>
+- [Setup & Running](#setup--running)
+- [How to Test](#how-to-test)
+- [Architecture](#architecture)
+- [Request Pipeline](#request-pipeline)
+- [Features](#features)
+  - [Authentication](#authentication)
+  - [Rate Limiting](#rate-limiting)
+  - [Domain Filtering](#domain-filtering)
+  - [Response Caching](#response-caching)
+  - [Monitoring Dashboard](#monitoring-dashboard)
+  - [Logging](#logging)
+- [Configuration](#configuration)
+- [Project Structure](#project-structure)
+- [Limitations](#limitations)
+- [Documentation](#documentation)
 
 ---
 
-## ✨ Features at a Glance
+## Setup & Running
 
-| Feature | Description | Module |
-|:--------|:------------|:-------|
-| 🔀 **HTTP/HTTPS Proxy** | Full HTTP forwarding + HTTPS CONNECT bidirectional tunneling | `forwarder.py` |
-| 🧵 **Thread Pool Concurrency** | Bounded `ThreadPoolExecutor` — prevents resource exhaustion under load | `server.py` |
-| 🛡️ **Token Bucket Rate Limiting** | Per-IP rate limiting with `429 Too Many Requests` + `Retry-After` header | `rate_limiter.py` |
-| 🔐 **PBKDF2 Authentication** | PBKDF2-HMAC-SHA256 (600K iterations, 32-byte salt, constant-time comparison) | `auth.py` |
-| 🚫 **Domain/IP/CIDR Filtering** | Exact domain, subdomain suffix, IPv4/IPv6, and CIDR range blocking with hot-reload | `filter.py` |
-| 📦 **LRU Response Cache** | Thread-safe OrderedDict LRU cache with TTL eviction for HTTP GET 200 responses | `cache.py` |
-| 📊 **Live Monitoring Dashboard** | Real-time web UI with SSE push, Chart.js graphs, and glassmorphism design | `dashboard.py` |
-| 📝 **Structured JSON Logging** | Dual-output (JSON file + human terminal), rotation, UUID request IDs, latency tracking | `logger.py` |
-| 🧪 **43 Automated Tests** | Comprehensive unittest suite — 35 unit + 8 integration tests | `test_proxy.py` |
-| ⚙️ **Single-File Configuration** | All settings in one INI file with typed defaults and sensible fallbacks | `config_loader.py` |
-| 🛑 **Graceful Shutdown** | `SIGINT`/`SIGTERM` handlers, socket cleanup, thread pool drain, zero leaks | `server.py` |
-| 📋 **RFC 7230 Compliance** | Hop-by-hop header stripping, `Via` injection, URI rewriting, `X-Forwarded-For` | `forwarder.py` |
-
----
-
-## 🚀 Quick Start
+**Prerequisites:** Python 3.10 or higher.
 
 ```bash
 # Clone the repository
 git clone https://github.com/Krit-Jain/Custom-Network-Proxy-Server.git
 cd Custom-Network-Proxy-Server
 
-# Start the proxy server (dashboard auto-launches on :8889)
+# Start the proxy server
 python src/server.py
 ```
 
-**Expected output:**
+On startup, the proxy binds to port `8888` and the dashboard launches on port `8889`:
+
 ```
 [+] Dashboard running at http://localhost:8889
 [+] Proxy listening on 0.0.0.0:8888  (pool=20)
 ```
 
-**Send your first request:**
+No `pip install` is needed — there are no external dependencies.
+
+---
+
+## How to Test
+
+### Quick Manual Test
+
+With the proxy running, use `curl` to send requests through it:
+
 ```bash
-# HTTP request through the proxy
+# HTTP request (allowed domain)
 curl -x localhost:8888 -U admin:admin123 http://neverssl.com
 
-# HTTPS request through the proxy
+# HTTPS request
 curl -x localhost:8888 -U admin:admin123 https://www.google.com
+
+# Blocked domain → should return 403 Forbidden
+curl -x localhost:8888 -U admin:admin123 http://example.com
+
+# No credentials → should return 407 Proxy Auth Required
+curl -x localhost:8888 http://neverssl.com
 ```
 
-**Open the dashboard:** Navigate to **http://localhost:8889** in your browser.
+### Automated Test Suite
 
-> **Note:** No `pip install` needed — the entire project runs on the Python standard library.
-
----
-
-## 🏗️ Architecture
-
-### High-Level System Design
-
-<div align="center">
-<img src="docs/architecture_diagram.png" alt="System Architecture" width="80%">
-</div>
-
-### Component Map
-
-```
-Custom-Network-Proxy-Server/
-│
-├── src/                              # 13 source modules (~90 KB)
-│   ├── server.py                     # TCP socket + ThreadPoolExecutor + signal handlers
-│   ├── handler.py                    # 6-step request pipeline orchestrator
-│   ├── parser.py                     # HTTP request parsing (RFC 7230 §3)
-│   ├── forwarder.py                  # HTTP forwarding + HTTPS CONNECT tunneling
-│   ├── filter.py                     # Domain/IP/CIDR blocklist with hot-reload
-│   ├── cache.py                      # Thread-safe LRU cache with TTL eviction
-│   ├── logger.py                     # Structured JSON logging + rotation + ring buffer
-│   ├── log_schema.py                 # Canonical LogEntry dataclass
-│   ├── rate_limiter.py               # Per-IP token bucket rate limiter
-│   ├── auth.py                       # PBKDF2-HMAC-SHA256 authentication
-│   ├── config_loader.py              # INI config parser with typed defaults
-│   ├── dashboard.py                  # Real-time monitoring HTTP server (SSE)
-│   └── dashboard_ui.py              # Self-contained dashboard HTML/CSS/JS
-│
-├── config/                           # Configuration
-│   ├── proxy.conf                    # Server settings (host, port, pool size, cache, rate limit)
-│   ├── blocked_domains.txt           # Domain/IP/CIDR blocklist
-│   └── users.txt                     # PBKDF2-hashed user credentials
-│
-├── tests/                            # 43 automated tests + smoke tests
-│   ├── test_proxy.py                 # 35 unit + 8 integration tests
-│   ├── sample_logs/                  # Example structured log entries
-│   └── *.sh                          # curl-based smoke tests
-│
-├── tools/
-│   └── manage_users.py               # CLI for user CRUD + password migration
-│
-├── docs/
-│   ├── design.md                     # Architecture & design document
-│   └── Project_Report.html           # Comprehensive project report
-│
-├── logs/                             # Rotating log output directory
-├── requirements.txt                  # Zero dependencies (stdlib only)
-├── setup.py                          # Package configuration
-└── README.md
-```
-
----
-
-## 📜 Request Pipeline
-
-Every incoming connection passes through a strict **6-step security pipeline**. Each step either advances the request or terminates it with an appropriate HTTP error:
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        CLIENT REQUEST                               │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-                               ▼
-              ┌────────────────────────────────┐
-              │  1. PARSE HTTP REQUEST         │───→ 400 Bad Request
-              │     (parser.py — RFC 7230)     │     (malformed input)
-              └────────────────┬───────────────┘
-                               │
-                               ▼
-              ┌────────────────────────────────┐
-              │  2. RATE LIMIT CHECK           │───→ 429 Too Many Requests
-              │     (Token Bucket per IP)      │     + Retry-After header
-              └────────────────┬───────────────┘
-                               │
-                               ▼
-              ┌────────────────────────────────┐
-              │  3. AUTHENTICATION             │───→ 407 Proxy Auth Required
-              │     (PBKDF2-HMAC-SHA256)       │     (missing/invalid creds)
-              └────────────────┬───────────────┘
-                               │
-                               ▼
-              ┌────────────────────────────────┐
-              │  4. DOMAIN / IP FILTER         │───→ 403 Forbidden
-              │     (blocklist + CIDR match)   │     (blocked destination)
-              └────────────────┬───────────────┘
-                               │
-                    ┌──────────┴──────────┐
-                    │                     │
-                    ▼                     ▼
-       ┌────────────────────┐  ┌────────────────────┐
-       │ 5. HTTPS CONNECT   │  │ 6. HTTP FORWARD    │
-       │    Tunnel           │  │    + Cache Lookup   │
-       │ (bidirectional     │  │ (cache-aside       │
-       │  byte relay)       │  │  pattern)           │
-       └────────┬───────────┘  └────────┬───────────┘
-                │                       │
-                └───────────┬───────────┘
-                            │
-                            ▼
-              ┌────────────────────────────────┐
-              │        RESPONSE → CLIENT       │
-              └────────────────────────────────┘
-```
-
-> **Security design:** Rate limiting runs **before** authentication. This is intentional — it provides fail-fast protection against brute-force attacks, preventing attackers from overwhelming the expensive PBKDF2 computation (600K iterations per attempt).
-
----
-
-## 🔐 Authentication
-
-Passwords are stored as **PBKDF2-HMAC-SHA256** hashes following [NIST SP 800-132](https://doi.org/10.6028/NIST.SP.800-132) and [OWASP 2024](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) recommendations.
-
-| Property | Value |
-|:---------|:------|
-| **Algorithm** | PBKDF2-HMAC-SHA256 |
-| **Iterations** | 600,000 (OWASP 2024 minimum for SHA-256) |
-| **Salt** | 32-byte random per user (`os.urandom(32)`) |
-| **Key Length** | 32 bytes |
-| **Comparison** | Constant-time via `hmac.compare_digest()` |
-| **Storage Format** | `username:pbkdf2$iterations$salt_hex$hash_hex` |
-
-**User Management CLI:**
+The project includes **43 automated tests** (35 unit + 8 integration):
 
 ```bash
-python tools/manage_users.py add alice mypassword      # Add user (auto-hashed)
-python tools/manage_users.py list                       # List all users
-python tools/manage_users.py remove alice               # Remove user
-python tools/manage_users.py migrate                    # Migrate plaintext → PBKDF2
+# Run unit tests (no proxy server needed)
+python -m unittest tests.test_proxy -v
+
+# Run full suite including integration tests (start proxy first)
+python src/server.py &
+python -m unittest tests.test_proxy -v
 ```
+
+**Test coverage:**
+
+| Module | Tests | What's Verified |
+|:-------|:------|:----------------|
+| Parser | 9 | Absolute URI, origin-form, CONNECT, POST body, malformed input |
+| Auth | 7 | Hash/verify, plaintext fallback, unique salts, wrong password |
+| Cache | 6 | Put/get, LRU eviction, TTL expiry, stats, clear |
+| Rate Limiter | 7 | Capacity, blocking, per-IP isolation, refill, concurrency |
+| Log Schema | 3 | Dict serialization, human format, timestamp |
+| Filter | 3 | Domain matching, null/empty handling |
+| Integration | 8 | HTTP forwarding, blocking, auth, rate limiting, 50-thread concurrency |
+
+### Dashboard
+
+Open **http://localhost:8889** in a browser while the proxy is running to see live metrics, request logs, and cache statistics.
 
 ---
 
-## 🛡️ Rate Limiting — Token Bucket Algorithm
+## Architecture
 
-Each unique client IP gets its own token bucket:
+The proxy is built as 13 modular components, each with a single responsibility:
+
+<img src="docs/architecture_diagram.png" alt="System Architecture" width="80%">
+
+| Module | Responsibility |
+|:-------|:---------------|
+| `server.py` | TCP socket listener, bounded thread pool (`ThreadPoolExecutor`), signal handlers |
+| `handler.py` | Request pipeline orchestration — routes each connection through 6 processing steps |
+| `parser.py` | HTTP request parsing per RFC 7230 (header accumulation, URI decomposition, body reading) |
+| `forwarder.py` | HTTP forwarding (header rewriting, cache-aside) and HTTPS CONNECT tunneling (bidirectional relay) |
+| `filter.py` | Domain/IP/CIDR blocklist with hot-reload support |
+| `cache.py` | Thread-safe LRU cache using `OrderedDict` with TTL eviction |
+| `auth.py` | PBKDF2-HMAC-SHA256 password hashing and verification |
+| `rate_limiter.py` | Per-IP token bucket rate limiter with stale bucket pruning |
+| `logger.py` | Dual-output structured logging (JSON file + human-readable terminal) with ring buffer |
+| `log_schema.py` | Canonical `LogEntry` dataclass — single schema for all log events |
+| `config_loader.py` | INI configuration parser with typed defaults |
+| `dashboard.py` | HTTP server for monitoring dashboard with SSE streaming |
+| `dashboard_ui.py` | Self-contained dashboard HTML/CSS/JS (glassmorphism UI, Chart.js) |
+
+---
+
+## Request Pipeline
+
+Every client connection passes through a 6-step pipeline in `handler.py`. Each step either advances the request or rejects it with the appropriate HTTP status code:
+
+```
+Client Request
+    │
+    ▼
+┌──────────────────────────────────┐
+│  1. Parse HTTP Request           │──→ 400 Bad Request
+│     (parser.py)                  │    (malformed input)
+└──────────────┬───────────────────┘
+               │
+               ▼
+┌──────────────────────────────────┐
+│  2. Rate Limit Check             │──→ 429 Too Many Requests
+│     (token bucket, per IP)       │    + Retry-After header
+└──────────────┬───────────────────┘
+               │
+               ▼
+┌──────────────────────────────────┐
+│  3. Authentication               │──→ 407 Proxy Auth Required
+│     (PBKDF2 verification)        │    (missing/invalid credentials)
+└──────────────┬───────────────────┘
+               │
+               ▼
+┌──────────────────────────────────┐
+│  4. Domain / IP Filter           │──→ 403 Forbidden
+│     (blocklist + CIDR match)     │    (blocked destination)
+└──────────────┬───────────────────┘
+               │
+        ┌──────┴──────┐
+        │             │
+        ▼             ▼
+  ┌───────────┐ ┌───────────────┐
+  │ 5. HTTPS  │ │ 6. HTTP       │
+  │ CONNECT   │ │ Forward       │
+  │ Tunnel    │ │ + Cache Check │
+  └─────┬─────┘ └──────┬────────┘
+        │              │
+        └──────┬───────┘
+               ▼
+         Response → Client
+```
+
+Rate limiting is placed **before** authentication intentionally — it prevents an attacker from flooding the server with authentication attempts, since PBKDF2 verification is computationally expensive.
+
+---
+
+## Features
+
+### Authentication
+
+Passwords are hashed using **PBKDF2-HMAC-SHA256** with parameters following NIST SP 800-132 and OWASP 2024 guidelines:
+
+| Parameter | Value |
+|:----------|:------|
+| Algorithm | PBKDF2-HMAC-SHA256 |
+| Iterations | 600,000 |
+| Salt | 32 bytes (random, per user) |
+| Key length | 32 bytes |
+| Comparison | Constant-time (`hmac.compare_digest`) |
+| Storage format | `username:pbkdf2$iterations$salt_hex$hash_hex` |
+
+**Managing users:**
+
+```bash
+python tools/manage_users.py add <username> <password>    # Add or update user
+python tools/manage_users.py remove <username>            # Remove user
+python tools/manage_users.py list                         # List all users
+python tools/manage_users.py migrate                      # Convert plaintext → hashed
+```
+
+Default credentials: `admin` / `admin123`
+
+---
+
+### Rate Limiting
+
+Uses the **token bucket algorithm** — each client IP gets its own bucket:
 
 | Parameter | Default | Description |
 |:----------|:--------|:------------|
-| **Capacity** | 20 tokens | Maximum burst size |
-| **Refill Rate** | 2 tokens/sec | Sustained request rate |
-| **Stale Threshold** | 600 seconds | Prune inactive buckets after 10 min |
+| Capacity | 20 | Maximum burst of requests |
+| Refill rate | 2/sec | Tokens restored per second |
+| Stale threshold | 10 min | Inactive buckets are pruned |
 
-When a client's bucket is empty, the proxy responds with:
-```
-HTTP/1.1 429 Too Many Requests
-Retry-After: 1
-```
-
-**Implementation highlights:**
-- Fine-grained locking: global lock for bucket registry, per-bucket locks for token operations
-- Stale bucket pruning runs at most once per minute (prevents memory growth)
-- Per-IP isolation — one client's traffic never affects another
+When a bucket is empty, the proxy returns `429 Too Many Requests` with a `Retry-After` header.
 
 ---
 
-## 🚫 Domain Filtering
+### Domain Filtering
 
-Edit `config/blocked_domains.txt` (supports hot-reload at runtime):
+The blocklist is configured in `config/blocked_domains.txt`:
 
 ```
-# Exact domain match (also blocks subdomains)
+# Exact domain (also blocks subdomains)
 example.com
 badsite.org
 
-# Exact IP address
+# IP address
 192.0.2.5
 
-# CIDR range (blocks entire subnet)
+# CIDR range
 10.0.0.0/8
-192.168.0.0/24
 ```
 
-| Filter Type | Example | Matches |
-|:------------|:--------|:--------|
-| Exact Domain | `example.com` | `example.com` |
-| Subdomain Suffix | `example.com` | `sub.example.com`, `a.b.example.com` |
-| Exact IP | `192.0.2.5` | `192.0.2.5` |
-| CIDR Range | `192.168.0.0/24` | All 256 addresses in the /24 block |
+Supports exact domain, subdomain suffix, exact IP, and CIDR range matching. The blocklist can be hot-reloaded at runtime without restarting the proxy.
 
 ---
 
-## 📦 Response Caching
+### Response Caching
 
-Thread-safe **LRU cache** with **TTL eviction** using `collections.OrderedDict`:
+An in-memory **LRU cache with TTL eviction** for HTTP GET responses:
 
-- **O(1)** insert, lookup, delete, and LRU reordering
-- Only caches **HTTP GET** requests with **200 OK** responses
-- Per-object size limit (512 KB) prevents large downloads from dominating cache
-- Lazy TTL expiration on `get()` — no background sweeper thread
-- Full observability: hits, misses, evictions, hit rate %, current size
-
-```ini
-[cache]
-enabled = true
-max_entries = 100
-max_object_size = 524288    # 512 KB
-cache_ttl = 300              # 5 minutes
-```
+- Data structure: `collections.OrderedDict` (O(1) operations)
+- Only caches GET requests with 200 OK responses
+- Per-object size limit: 512 KB
+- TTL: 300 seconds (configurable)
+- TTL is checked lazily on `get()` — no background sweeper thread
+- Cache statistics (hits, misses, evictions, hit rate) are tracked and exposed via the dashboard
 
 ---
 
-## 📊 Monitoring Dashboard
+### Monitoring Dashboard
 
-The real-time dashboard at `http://localhost:8889` provides complete proxy observability:
+A web dashboard runs on port `8889` alongside the proxy:
 
-| Panel | Description |
-|:------|:------------|
-| 📈 **Live Counters** | Total / Allowed / Blocked / Cached / Rate-Limited / Errors |
-| 📊 **Requests/sec Chart** | Real-time Chart.js line graph (last 60 seconds) |
-| 📋 **Live Log Feed** | Color-coded stream: 🟢 ALLOW, 🔴 BLOCK, 🟡 RATE_LIMIT, 🔵 CACHE_HIT |
-| 💾 **Cache Stats** | Entries, hit rate %, total size, evictions |
-| 🌐 **Top Hosts** | Most requested domains ranked by hit count |
-| ⏱️ **Rate Limiter** | Active IP buckets, capacity, refill rate |
+<img src="docs/dashboard_screenshot.png" alt="Monitoring Dashboard" width="85%">
 
-**REST API:**
+| Panel | What it shows |
+|:------|:-------------|
+| Live counters | Total, Allowed, Blocked, Cached, Rate-Limited, Errors |
+| Requests/sec chart | Line graph of throughput over the last 60 seconds |
+| Log feed | Color-coded request stream (green=allow, red=block, yellow=rate-limit, blue=cache-hit) |
+| Cache stats | Current entries, hit rate, size |
+| Top hosts | Most requested domains |
+| Rate limiter | Active IP buckets |
 
-| Endpoint | Description |
-|:---------|:------------|
+**API endpoints:**
+
+| Endpoint | Response |
+|:---------|:---------|
 | `GET /` | Dashboard HTML page |
 | `GET /api/metrics` | JSON metrics snapshot |
 | `GET /api/logs` | Recent log entries (JSON) |
-| `GET /events` | SSE stream (real-time push every 1 second) |
+| `GET /events` | Server-Sent Events stream (real-time push) |
+
+The dashboard is built with `http.server` + `ThreadingMixIn` and uses SSE for live updates. The UI uses Chart.js (loaded via CDN) for graphs.
 
 ---
 
-## 📝 Structured Logging
+### Logging
 
-Every event is written to **three destinations simultaneously**:
+Every event is written to three destinations:
 
-```
-log_event()
-    ├── 📁 JSON File    → logs/proxy.log (1 MB rotation × 5 backups)
-    ├── 🖥️ Terminal     → Human-readable compact format
-    └── 🔄 Ring Buffer  → Last 200 entries → Dashboard SSE stream
-```
+1. **JSON file** — `logs/proxy.log` (one JSON object per line, 1 MB rotation, 5 backups)
+2. **Terminal** — human-readable compact format
+3. **Ring buffer** — last 200 entries, consumed by the dashboard SSE stream
 
-**Example JSON log entry:**
+Each request is assigned a UUID4 `request_id` for end-to-end log correlation.
+
+**Example log entry:**
+
 ```json
 {
   "timestamp": "2026-06-12T03:00:01.123+00:00",
@@ -357,7 +303,6 @@ log_event()
   "client_ip": "192.168.1.10",
   "method": "GET",
   "host": "example.com",
-  "port": 80,
   "action": "FORWARDED",
   "status_code": 200,
   "latency_ms": 45.2,
@@ -367,33 +312,33 @@ log_event()
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
-All behavior is controlled via a single `config/proxy.conf` file:
+All settings are in `config/proxy.conf`:
 
 ```ini
 [server]
 listen_host = 0.0.0.0
 listen_port = 8888
-max_connections = 50          # OS socket backlog
-thread_pool_size = 20         # Concurrent worker threads
+max_connections = 50
+thread_pool_size = 20
 
 [logging]
 log_file = logs/proxy.log
-max_log_size = 1048576        # 1 MB before rotation
+max_log_size = 1048576       # 1 MB
 backup_count = 5
 log_level = INFO
 
 [cache]
 enabled = true
 max_entries = 100
-max_object_size = 524288      # 512 KB per object
-cache_ttl = 300               # 5 minutes
+max_object_size = 524288     # 512 KB
+cache_ttl = 300              # 5 minutes
 
 [rate_limit]
 enabled = true
-capacity = 20                 # Max burst per IP
-refill_rate = 2               # Tokens restored per second
+capacity = 20
+refill_rate = 2
 
 [dashboard]
 enabled = true
@@ -402,79 +347,84 @@ port = 8889
 
 ---
 
-## 🧪 Testing
+## Project Structure
 
-```bash
-# Run unit tests only (no proxy needed)
-python -m unittest tests.test_proxy -v
-
-# Run full suite including integration tests
-python src/server.py &
-python -m unittest tests.test_proxy -v
 ```
-
-### Test Suite — 43 Tests (35 Unit + 8 Integration)
-
-| Module | Tests | What's Tested |
-|:-------|:------|:--------------|
-| **Parser** | 9 | Absolute URI, origin-form, CONNECT, POST body, malformed input, query strings |
-| **Auth** | 7 | Hash/verify round-trip, plaintext fallback, unique salts, wrong password, edge cases |
-| **Cache** | 6 | Put/get, LRU eviction order, TTL expiry, stats accuracy, clear, overwrite |
-| **Rate Limiter** | 7 | Capacity enforcement, blocking, per-IP isolation, refill, concurrent access |
-| **Log Schema** | 3 | Dict serialization, human format, timestamp auto-population |
-| **Filter** | 3 | Domain exact/suffix matching, null/empty handling |
-| **Integration** | 8 | HTTP forwarding, domain blocking, auth enforcement, rate limiting, 50-thread concurrency |
+Custom-Network-Proxy-Server/
+├── src/
+│   ├── server.py            # Entry point — TCP socket + thread pool
+│   ├── handler.py           # 6-step request pipeline
+│   ├── parser.py            # HTTP request parsing (RFC 7230)
+│   ├── forwarder.py         # HTTP forwarding + HTTPS tunneling
+│   ├── filter.py            # Domain/IP/CIDR blocklist
+│   ├── cache.py             # LRU cache with TTL
+│   ├── logger.py            # Structured JSON logging + rotation
+│   ├── log_schema.py        # LogEntry dataclass
+│   ├── rate_limiter.py      # Token bucket rate limiter
+│   ├── auth.py              # PBKDF2 password hashing
+│   ├── config_loader.py     # Configuration parser
+│   ├── dashboard.py         # Monitoring HTTP server (SSE)
+│   └── dashboard_ui.py      # Dashboard HTML/CSS/JS
+│
+├── config/
+│   ├── proxy.conf           # Server configuration
+│   ├── blocked_domains.txt  # Domain/IP blocklist
+│   └── users.txt            # User credentials (PBKDF2 hashed)
+│
+├── tools/
+│   └── manage_users.py      # CLI for user management
+│
+├── tests/
+│   ├── test_proxy.py        # 43 unit + integration tests
+│   ├── sample_logs/         # Example JSON log entries
+│   └── *.sh                 # curl-based smoke tests
+│
+├── docs/
+│   ├── design.md            # Architecture & design document
+│   ├── Project_Report.pdf   # Detailed project report
+│   └── Project_Report.html  # Report (HTML version)
+│
+├── logs/                    # Log output directory
+├── requirements.txt
+├── setup.py
+└── README.md
+```
 
 ---
 
-## 🛑 Graceful Shutdown
+## Graceful Shutdown
 
-```
-Ctrl+C (SIGINT) or SIGTERM
-    │
-    ├── Close listening socket → accept loop exits
-    ├── ThreadPoolExecutor.shutdown(wait=True) → drain in-flight requests
-    ├── Dashboard daemon thread → auto-terminates
-    └── Zero resource leaks ✅
-```
+- `SIGINT` (Ctrl+C) and `SIGTERM` trigger clean shutdown
+- Listening socket is closed, accept loop exits
+- `ThreadPoolExecutor.shutdown(wait=True)` drains in-flight requests
+- Dashboard daemon thread terminates automatically
 
 ---
 
-## ⚠️ Limitations
+## Limitations
 
-| Limitation | Potential Enhancement |
-|:-----------|:---------------------|
-| No `Cache-Control` header parsing | Implement full HTTP cache semantics (RFC 7234) |
-| No chunked transfer decoding | Parse `Transfer-Encoding: chunked` |
-| Thread-based concurrency | Migrate to `asyncio` for 10K+ connections |
-| No TLS interception | Add optional MITM proxy mode with CA certificate |
-| No connection pooling to origins | Implement `Keep-Alive` connection reuse |
-| No WebSocket proxy support | Handle `Upgrade: websocket` header |
+| Limitation | Description |
+|:-----------|:------------|
+| No `Cache-Control` parsing | HTTP cache semantics (RFC 7234) are not fully implemented |
+| No chunked transfer decoding | Chunked responses are relayed transparently |
+| Thread-based concurrency | Bounded by OS thread limits; `asyncio` would scale further |
+| No TLS interception | HTTPS content is tunneled opaquely (intentional design choice) |
+| No connection pooling | Each request opens a new TCP connection to the origin |
+| No WebSocket support | `Upgrade: websocket` is not handled |
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 | Document | Description |
 |:---------|:------------|
-| [`docs/design.md`](docs/design.md) | Architecture diagrams, design decisions, Mermaid sequence diagrams |
-| [`docs/Project_Report.html`](docs/Project_Report.html) | Comprehensive project report (open in browser, print to PDF) |
+| [`docs/design.md`](docs/design.md) | Architecture diagrams, design decisions, sequence diagrams |
+| [`docs/Project_Report.pdf`](docs/Project_Report.pdf) | Comprehensive project report |
 
 ---
 
-## 🔗 References
+## References
 
-1. [RFC 7230 — HTTP/1.1 Message Syntax and Routing](https://www.rfc-editor.org/rfc/rfc7230) — IETF
-2. [NIST SP 800-132 — Password-Based Key Derivation](https://doi.org/10.6028/NIST.SP.800-132) — NIST
-3. [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) — OWASP 2024
-4. [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) — MDN Web Docs
-
----
-
-<div align="center">
-
-**Built with ❤️ using only the Python Standard Library**
-
-*Custom Network Proxy Server • Krit Jain • 2026*
-
-</div>
+- [RFC 7230 — HTTP/1.1 Message Syntax and Routing](https://www.rfc-editor.org/rfc/rfc7230)
+- [NIST SP 800-132 — Password-Based Key Derivation](https://doi.org/10.6028/NIST.SP.800-132)
+- [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
