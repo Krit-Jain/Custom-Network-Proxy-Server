@@ -1,249 +1,314 @@
-# Custom Network Proxy Server
+# ⚡ Custom Network Proxy Server
 
-## 📌 Overview
+![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Tests](https://img.shields.io/badge/Tests-43%20passed-brightgreen)
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20WSL-blue)
 
-This project implements a **custom forward proxy server** supporting both **HTTP and HTTPS traffic**.  
-It is built using low-level socket programming and demonstrates core networking concepts such as concurrency, request parsing, filtering, caching, logging, and secure tunneling.
-
-The proxy follows a **modular and extensible design**, making it suitable for academic evaluation and further enhancement.
+A **production-grade forward proxy server** built with Python's socket programming. Supports HTTP forwarding, HTTPS CONNECT tunneling, per-IP rate limiting, PBKDF2 authentication, LRU caching, structured JSON logging, and a **real-time monitoring dashboard**.
 
 ---
 
 ## ✨ Features
 
-- HTTP proxy support
-- HTTPS proxy support using `CONNECT` tunneling
-- Thread-per-connection concurrency model
-- Domain and IP-based filtering
-- Configurable blocklist
-- Detailed logging with log rotation
-- Optional in-memory HTTP response caching (LRU)
-- Thread-safe shared components
-- Graceful shutdown on SIGINT/SIGTERM
-- Tested using `curl`-based scripts
+| Feature | Description |
+|---|---|
+| 🔀 **HTTP/HTTPS Proxy** | Full HTTP forwarding + HTTPS CONNECT tunneling |
+| 🧵 **Thread Pool** | Bounded `ThreadPoolExecutor` (configurable, prevents resource exhaustion) |
+| 🛡️ **Rate Limiting** | Per-IP token bucket algorithm with `429 Too Many Requests` + `Retry-After` |
+| 🔐 **Authentication** | PBKDF2-HMAC-SHA256 password hashing (600K iterations) |
+| 🚫 **Domain Filtering** | Domain, subdomain, IP, and CIDR range blocking with hot-reload |
+| 📦 **Response Caching** | Thread-safe LRU cache with TTL eviction for HTTP GET requests |
+| 📊 **Live Dashboard** | Real-time web dashboard with SSE, Chart.js graphs, and glassmorphism UI |
+| 📝 **Structured Logging** | JSON log output with rotation, request IDs, and latency tracking |
+| 🧪 **43 Tests** | Comprehensive unittest suite (35 unit + 8 integration) |
+| ⚙️ **Configurable** | All settings in a single `proxy.conf` INI file |
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/Krit-Jain/Custom-Network-Proxy-Server.git
+cd Custom-Network-Proxy-Server
+
+# Start the proxy (dashboard launches automatically on :8889)
+python src/server.py
+```
+
+**Expected output:**
+```
+[+] Dashboard running at http://localhost:8889
+[+] Proxy listening on 0.0.0.0:8888  (pool=20)
+```
 
 ---
 
 ## 🗂️ Project Structure
 
-```bash
-custom-network-proxy-server/
+```
+Custom-Network-Proxy-Server/
 ├── src/
-│ ├── server.py # Main server loop & graceful shutdown
-│ ├── handler.py # Per-client request handling
-│ ├── parser.py # HTTP request parsing
-│ ├── forwarder.py # HTTP forwarding & HTTPS tunneling
-│ ├── filter.py # Domain/IP filtering
-│ ├── cache.py # LRU cache implementation
-│ └── logger.py # Logging, metrics & log rotation
+│   ├── server.py           # Entry point — TCP socket + thread pool
+│   ├── handler.py          # 6-step request pipeline
+│   ├── parser.py           # HTTP request parsing (RFC 7230)
+│   ├── forwarder.py        # HTTP forwarding + HTTPS tunneling
+│   ├── filter.py           # Domain/IP/CIDR blocklist
+│   ├── cache.py            # LRU cache with TTL
+│   ├── logger.py           # Structured JSON logging + rotation
+│   ├── log_schema.py       # LogEntry dataclass
+│   ├── rate_limiter.py     # Token bucket rate limiter
+│   ├── auth.py             # PBKDF2 password hashing
+│   ├── config_loader.py    # Configuration parser
+│   ├── dashboard.py        # Monitoring HTTP server (SSE)
+│   └── dashboard_ui.py     # Dashboard HTML/CSS/JS
 │
 ├── config/
-│ └── blocked_domains.txt
-│ └── proxy.conf
-│ └── users.txt
+│   ├── proxy.conf          # Server configuration
+│   ├── blocked_domains.txt # Domain/IP blocklist
+│   └── users.txt           # User credentials (PBKDF2 hashed)
 │
-├── logs/
-│ └── proxy.log
+├── tools/
+│   └── manage_users.py     # CLI for user management
 │
 ├── tests/
-│ ├── test_http_allowed.sh
-│ ├── test_http_blocked.sh
-│ ├── test_https_allowed.sh
-│ ├── test_https_blocked.sh
-│ ├── test_cache.sh
-│ └── test_concurrency.sh
+│   ├── test_proxy.py       # 43 unit + integration tests
+│   ├── sample_logs/        # Example JSON log entries
+│   └── *.sh                # curl-based smoke tests
 │
 ├── docs/
-│ └── design.md
+│   └── design.md           # Architecture + design document
 │
-├── .gitignore
+├── logs/                   # Log output directory
+├── requirements.txt
+├── setup.py
 └── README.md
 ```
 
 ---
 
-## ⚙️ Requirements
+## 📡 Usage
 
-- Python **3.10+**
-- Linux / macOS / WSL recommended
-- `curl` installed for testing
+### HTTP Requests
+
+```bash
+curl -x localhost:8888 -U admin:admin123 http://neverssl.com
+```
+
+### HTTPS Requests
+
+```bash
+curl -x localhost:8888 -U admin:admin123 https://www.google.com
+```
+
+### Dashboard
+
+Open **http://localhost:8889** in your browser for the live monitoring dashboard.
 
 ---
 
-## ▶️ How to Run
+## 🔧 Configuration
 
-### 1️⃣ Start the Proxy Server
+All settings are in `config/proxy.conf`:
 
-From the project root:
+```ini
+[server]
+listen_host = 0.0.0.0
+listen_port = 8888
+max_connections = 50
+thread_pool_size = 20
 
-```bash
-python3 src/server.py
+[cache]
+enabled = true
+max_entries = 100
+cache_ttl = 300
+
+[rate_limit]
+enabled = true
+capacity = 20          # Max burst per IP
+refill_rate = 2        # Tokens/sec
+
+[dashboard]
+enabled = true
+port = 8889
 ```
-Expected output:
 
-```bash
-[+] Proxy listening on 0.0.0.0:8888
-```
-### 2️⃣ Use the Proxy with curl
-
-HTTP request:
-
-```bash
-curl -x localhost:8888 http://neverssl.com
-```
-
-HTTPS request:
-
-```bash
-curl -x localhost:8888 https://neverssl.com
-```
 ---
 
-## 🔒 Filtering Configuration
+## 🔐 User Management
 
-Blocked domains and IPs are defined in:
+Passwords are stored as PBKDF2-HMAC-SHA256 hashes (600K iterations, 32-byte salt).
 
 ```bash
-config/blocked_domains.txt
+# Add a user
+python tools/manage_users.py add alice mypassword
+
+# List users
+python tools/manage_users.py list
+
+# Remove a user
+python tools/manage_users.py remove alice
+
+# Migrate plaintext passwords to hashed
+python tools/manage_users.py migrate
 ```
 
-Example:
+---
 
-```bash
+## 🚫 Domain Filtering
+
+Edit `config/blocked_domains.txt`:
+
+```
+# Blocked domains
 example.com
 badsite.org
+
+# Blocked IPs
 192.0.2.5
-```
-## 📜 Logging & Metrics
 
-- Logs are written to:
-```bash
-logs/proxy.log
+# CIDR ranges
+10.0.0.0/8
 ```
 
-### Each log entry includes:
-- Timestamp
-- Client IP and port
-- Destination host and port
-- Request type
-- Action (`ALLOWED`, `BLOCKED`, `CACHE HIT`, `CACHE MISS`)
-
-### Log Rotation
-- Logs are automatically rotated when exceeding a fixed size limit
-- Prevents unbounded disk usage
+Supports hot-reload — call `filter.reload_blocklist()` at runtime.
 
 ---
 
-## 🧠 Caching
+## 📊 Monitoring Dashboard
 
-- Optional **in-memory LRU cache**
-- Applied only to **HTTP GET** requests
-- **HTTPS traffic is not cached**
-- Cache is **thread-safe**
-- Cache activity is logged
+The dashboard at `http://localhost:8889` provides:
+
+- **Live counters** — Total / Allowed / Blocked / Cached / Rate-Limited / Errors
+- **Requests/sec chart** — Real-time line graph (last 60 seconds)
+- **Live log feed** — Color-coded request stream
+- **Cache stats** — Entries, hit rate, size
+- **Top hosts** — Most requested domains
+- **Rate limiter status** — Active tracked IPs
+
+**API Endpoints:**
+
+| Endpoint | Description |
+|---|---|
+| `GET /` | Dashboard HTML page |
+| `GET /api/metrics` | JSON metrics snapshot |
+| `GET /api/logs` | Recent log entries (JSON) |
+| `GET /events` | SSE stream (real-time push) |
 
 ---
 
 ## 🧪 Testing
 
-All functionality is tested using **curl-based scripts**.
-
-### Run Tests
-
-Start the proxy in one terminal:
 ```bash
-python3 src/server.py
-```
-Run tests in another terminal:
-```bash
-./tests/test_http_allowed.sh
-./tests/test_http_blocked.sh
-./tests/test_https_allowed.sh
-./tests/test_https_blocked.sh
-./tests/test_cache.sh
-./tests/test_concurrency.sh
-```
-### Tests Cover:
-- HTTP allowed requests
-- HTTP blocked requests
-- HTTPS CONNECT tunneling
-- HTTPS blocking
-- Cache hit/miss behavior
-- Concurrent client handling
+# Run all unit tests (no proxy needed)
+python -m unittest tests.test_proxy -v
 
-## 🔐 Proxy Authentication
-
-The proxy implements **Basic Proxy Authentication** using the
-`Proxy-Authorization` HTTP header.
-
-### Authentication Mechanism
-- Clients must authenticate using a **username and password**
-- Credentials are sent using HTTP Basic authentication
-- Unauthorized requests receive **HTTP/1.1 407 Proxy Authentication Required**
-
-### Configuration
-
-User credentials are defined in:
-```bash
-config/users.txt
-```
-Format:
-```bash
-username:password
+# Run full suite including integration tests
+python src/server.py &
+python -m unittest tests.test_proxy -v
 ```
 
-Example:
-```bash
-admin:admin123
-user:test123
+### Test Coverage
+
+| Module | Tests |
+|---|---|
+| Parser | 9 tests (absolute URI, origin-form, CONNECT, POST body, malformed) |
+| Auth | 7 tests (hash/verify, plaintext fallback, unique salts, edge cases) |
+| Cache | 6 tests (put/get, LRU eviction, TTL expiry, stats, clear) |
+| Rate Limiter | 7 tests (capacity, blocking, per-IP isolation, refill, concurrency) |
+| Log Schema | 3 tests (dict serialization, human format, timestamp) |
+| Filter | 3 tests (domain matching, null/empty handling) |
+| Integration | 8 tests (HTTP forwarding, blocking, auth, rate limiting, concurrency) |
+
+---
+
+## 📜 Request Pipeline
+
+Every request passes through this 6-step pipeline:
+
+```
+Client Request
+    │
+    ▼
+1. Parse HTTP request (parser.py)
+    │
+    ▼
+2. Rate limit check (rate_limiter.py) ──→ 429 Too Many Requests
+    │
+    ▼
+3. Authentication (auth.py) ──→ 407 Proxy Auth Required
+    │
+    ▼
+4. Domain/IP filter (filter.py) ──→ 403 Forbidden
+    │
+    ▼
+5. HTTPS? → CONNECT tunnel (bidirectional relay)
+6. HTTP?  → Forward request (with caching)
+    │
+    ▼
+Response → Client
 ```
 
-> Credentials are stored in plain text for simplicity.  
-> Password hashing and stronger authentication schemes can be added as a future enhancement.
+---
 
-### Behavior
-- Authentication is enforced **before filtering and forwarding**
-- Both **HTTP** and **HTTPS (CONNECT)** requests require authentication
-- Failed authentication attempts are logged
+## 📝 Logging
 
-### Example Usage
+- **File output**: JSON (one object per line) → `logs/proxy.log`
+- **Terminal output**: Human-readable compact format
+- **Rotation**: Size-based at 1 MB, 5 backup files
+- **Request IDs**: UUID4 for end-to-end correlation
+- **Latency tracking**: Round-trip time to origin in milliseconds
 
-```bash
-curl -x localhost:8888 -U admin:admin123 http://neverssl.com
-curl -x localhost:8888 -U admin:admin123 https://neverssl.com
+Example log entry:
+```json
+{
+  "timestamp": "2026-06-12T03:00:01.123+00:00",
+  "level": "INFO",
+  "event": "FORWARDED",
+  "request_id": "a1b2c3d4-...",
+  "client_ip": "192.168.1.10",
+  "method": "GET",
+  "host": "example.com",
+  "action": "FORWARDED",
+  "status_code": 200,
+  "latency_ms": 45.2,
+  "bytes_transferred": 15234
+}
 ```
-## ⚙️ Server Configuration
 
-Server behavior is configured using a plain text configuration file:
-
-```bash
-config/proxy.conf
-```
-
-The configuration file allows setting:
-- Listening address and port
-- Maximum concurrent connections
-- Log file path and rotation size
-- Cache size and object limits
-
-This design separates configuration from code and improves flexibility.
+---
 
 ## 🛑 Graceful Shutdown
 
-- Handles `Ctrl + C` (SIGINT) and `SIGTERM`
+- Handles `Ctrl+C` (`SIGINT`) and `SIGTERM`
 - Listening socket is closed cleanly
-- Active client-handling threads terminate naturally
-- Prevents resource leaks and ensures clean server shutdown
+- Thread pool drains in-flight requests before exit
+- Dashboard daemon thread terminates automatically
+- Zero resource leaks
+
+---
 
 ## ⚠️ Limitations
-- Full HTTP cache-control semantics are not implemented
-- Chunked transfer decoding is not interpreted
-- Event-driven concurrency (asyncio) is not used
-- TLS interception is intentionally out of scope
+
+- Full HTTP `Cache-Control` semantics are not implemented
+- Chunked transfer decoding is not interpreted (relayed transparently)
+- Event-driven concurrency (`asyncio`) not used
+- TLS interception (MITM) is intentionally out of scope
+- No WebSocket proxy support
+
+---
 
 ## 📚 Documentation
-Detailed design and architecture documentation is available in:
 
-```bash
+Detailed architecture diagrams and design decisions are documented in:
+
+```
 docs/design.md
 ```
+
+---
+
+## 📄 License
+
+This project is for educational and academic purposes.
