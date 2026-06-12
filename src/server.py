@@ -25,6 +25,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 
 from config_loader import get_server_config
+from dashboard import start_dashboard
 from handler import handle_client
 
 # ── Load configuration ───────────────────────────────────────
@@ -72,6 +73,9 @@ def start_proxy():
         max_workers=POOL_SIZE,
         thread_name_prefix="proxy-worker",
     )
+
+    # ── Start dashboard server (daemon thread) ───────────────
+    start_dashboard()
 
     print(
         f"[+] Proxy listening on {LISTEN_HOST}:{LISTEN_PORT}  "
