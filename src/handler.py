@@ -18,6 +18,7 @@ import base64
 import os
 import socket
 
+from auth import load_users, verify_password
 from config_loader import get_server_config
 from filter import is_blocked
 from forwarder import forward_http, tunnel
@@ -38,29 +39,16 @@ USERS_FILE = os.path.join(
     "users.txt",
 )
 
-
-def _load_users() -> dict[str, str]:
-    """Read username:password pairs from config/users.txt."""
-    users: dict[str, str] = {}
-    try:
-        with open(USERS_FILE, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if ":" in line:
-                    username, password = line.split(":", 1)
-                    users[username.strip()] = password.strip()
-    except FileNotFoundError:
-        pass
-    return users
-
-
-USERS = _load_users()
+USERS = load_users(USERS_FILE)
 
 
 def _check_auth(headers: dict) -> bool:
-    """Validate Basic Proxy-Authorization header against USERS."""
+    """
+    Validate Basic Proxy-Authorization header against USERS.
+
+    Supports both PBKDF2-hashed and legacy plaintext credentials
+    via auth.verify_password().
+    """
     auth = headers.get("proxy-authorization")
     if not auth or not auth.lower().startswith("basic "):
         return False
@@ -75,7 +63,10 @@ def _check_auth(headers: dict) -> bool:
         return False
 
     username, password = decoded.split(":", 1)
-    return USERS.get(username) == password
+    stored = USERS.get(username)
+    if stored is None:
+        return False
+    return verify_password(password, stored)
 
 
 def handle_client(client_sock: socket.socket, client_addr: tuple):

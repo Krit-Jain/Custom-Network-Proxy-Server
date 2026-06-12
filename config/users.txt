@@ -1,2 +1,4 @@
-admin:admin123
-user:test123
+# Proxy user credentials (managed by manage_users.py)
+# Format: username:pbkdf2$iterations$salt$hash
+admin:pbkdf2$600000$031d0f3ab9abd8708a0dddf5a1cee878f352798327b3c7e8a2db222e92221bde$5ed82ea8278d71fee30bd76462c2fe6072b5679a33a0505dccf4baa44cbba4de
+user:pbkdf2$600000$904aa9eb8d1101a9e4a70eba6befe4c219022606f6137be80f2202733528eb8d$71cd153932109982f7c4c3615987c58a2afe0645ae47a2265fc84a50f53883a5
